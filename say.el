@@ -20,26 +20,39 @@
 
 ;;; Commentary:
 
-;;
+;; See `say-mode' documentation for details.
 
 ;;; Code:
 
+(require 'seq)
+
+(defvar say--replacements
+  '(("-" " ")
+    (";;" " "))
+  "List of replacements (from-string to-string) in line before saying.")
+
 (defun say--line (&optional line)
-  "Say current line."
+  "Say current line or LINE if non-nil.
+
+Before saying LINE, replace items using the from-to mappings in
+`say--replacements'. For example ignore the dashes that start list items."
   (interactive)
   (setq line (or line (thing-at-point 'line)))
+  (seq-do (lambda (rep)
+            (setq line (replace-regexp-in-string (car rep) (cadr rep) line)))
+          say--replacements)
   (start-process "say" nil "say" line))
 
 (defun say--next-line ()
   "Say next line."
   (interactive)
-  (next-line)
+  (forward-line)
   (say--line))
 
 (defun say--previous-line ()
   "Say previous line."
   (interactive)
-  (previous-line)
+  (forward-line -1)
   (say--line))
 
 ;;;###autoload
@@ -55,10 +68,10 @@ Say mode asynchronously sends the current line of text to the
 system `say' command.
 
 When enabled Say mode makes the buffer read-only by enabling
-`read-only-mode'. When disabled Say mode makes the buffer read-write by
-disabling `read-only-mode'.
-
-TODO: Handle starting in read only mode
+`read-only-mode'. When disabled Say mode makes the buffer
+read-write by disabling `read-only-mode'. If upon enablement the
+buffer already had `read-only-mode' enabled then it is left
+enabled when Say mode is disabled.
 
 Say mode lets you operate it using one hand on either the left or
 right side of the keyboard. It uses familiar VI and Emacs
@@ -67,9 +80,9 @@ of the keyboard in an attempt to retain a sort of muscle memory
 between both hands. This is useful for example you write your
 presentation's content in Org and are developing a screencast to
 present along with it. Say mode frees you up from having to
-constantly look back and forth between them. After working on the
-same screencast for hours and hours any way to speed up the
-process help.
+constantly alternate back and forth between them as you develop
+the screencast content . After working on the same screencast for
+hours and hours any way to speed up the process help.
 
 When Say mode is enabled this is the keymap for the right side:
 
@@ -87,13 +100,14 @@ When Say mode is enabled this is the keymap for the left side:
 - v: move the cursor down one line.
 - d: move the cursor up one line and say the line.
 - q: move the cursor up one line.
-- t: toggle the mode.
+- r: toggle the mode.
 
-Sometimes Say mode doesn't say what you expect or anything at all. When this
-hapens try to use your system's `say' command using the line of text on which
-you are operating. If that doesn't work then figure out why it isn't doing
-what you expect. If it works there but not in Say mode then please fill out a
-help request.
+Sometimes Say mode doesn't say what you expect or anything at
+all. When this happens try to directly use your system's `say'
+command using the line of text on which you are operating. If
+that doesn't work then figure out why it isn't doing what you
+expect. If it works there but not in Say mode then please fill
+out a help request.
 "
   :lighter " Say"
   :keymap (let ((map (make-sparse-keymap)))
@@ -108,9 +122,12 @@ help request.
             (define-key map (kbd "v") #'next-line)
             (define-key map (kbd "d") #'say--previous-line)
             (define-key map (kbd "q") #'previous-line)
-            (define-key map (kbd "t") #'say-mode)
+            (define-key map (kbd "r") #'say-mode)
             map)
-  (read-only-mode (if (bound-and-true-p say-mode) 1 0)))
+  (let* ((enabling-say-mode (bound-and-true-p say-mode))
+         (disabling-say-mode (not enabling-say-mode)))
+    (when enabling-say-mode (read-only-mode 1))
+    (when disabling-say-mode (read-only-mode 0))))
 
 (provide 'say)
 ;;; say.el ends here
